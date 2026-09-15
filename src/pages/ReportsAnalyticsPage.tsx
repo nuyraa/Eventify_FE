@@ -73,14 +73,19 @@ export const ReportsAnalyticsPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const categoryChartData = [
-    { name: 'Musik', value: 45 },
-    { name: 'Teknologi', value: 25 },
-    { name: 'Design', value: 15 },
-    { name: 'E-Sports', value: 15 },
-  ];
+  // Hitung Distribusi Kategori Event secara dinamis dari data event riil
+  const categoryCounts = events.reduce((acc, evt) => {
+    const cat = evt.category || 'Lainnya';
+    acc[cat] = (acc[cat] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
-  const COLORS = ['#30E3B2', '#FFDC00', '#FF80BF', '#4D96FF'];
+  const categoryChartData = Object.keys(categoryCounts).map((catName) => ({
+    name: catName,
+    value: categoryCounts[catName],
+  }));
+
+  const COLORS = ['#30E3B2', '#FFDC00', '#FF80BF', '#4D96FF', '#A78BFA', '#F97316'];
 
   return (
     <div className="space-y-6 font-jakarta">
@@ -131,16 +136,30 @@ export const ReportsAnalyticsPage: React.FC = () => {
             <PieIcon size={18} /> Distribusi Kategori Event
           </h3>
           <div className="h-64 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={categoryChartData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>
-                  {categoryChartData.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#2B2630" strokeWidth={2} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {categoryChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryChartData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
+                  >
+                    {categoryChartData.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#2B2630" strokeWidth={2} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(val: any) => [`${val} Event`, 'Jumlah Event']} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center text-center p-4">
+                <p className="font-space font-extrabold text-xs text-neo-dark uppercase">Belum Ada Data Kategori Event</p>
+                <p className="font-jakarta text-[11px] text-gray-500 font-semibold mt-1">Diagram akan menghitung secara otomatis begitu event riil ditambahkan.</p>
+              </div>
+            )}
           </div>
         </Card>
       </div>

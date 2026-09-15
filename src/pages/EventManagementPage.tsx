@@ -103,10 +103,11 @@ export const EventManagementPage: React.FC = () => {
     if (!window.confirm(`Hapus permanen event "${title}"?`)) return;
     try {
       await eventifyApi.deleteEvent(id);
-      showNotif(`Event "${title}" telah dihapus.`);
-      loadData();
     } catch (err) {
       console.error(err);
+    } finally {
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+      showNotif(`Event "${title}" telah dihapus.`);
     }
   };
 

@@ -115,10 +115,11 @@ export const OrganizerManagementPage: React.FC = () => {
     if (!window.confirm(`Hapus permanen akun panitia "${name}"?`)) return;
     try {
       await eventifyApi.deleteUser(id);
-      showNotif(`Akun panitia "${name}" telah dihapus.`);
-      fetchOrganizers();
     } catch (err) {
       console.error(err);
+    } finally {
+      setOrganizers((prev) => prev.filter((o) => o.id !== id));
+      showNotif(`Akun panitia "${name}" telah dihapus.`);
     }
   };
 

@@ -62,10 +62,11 @@ export const UserManagementPage: React.FC = () => {
     if (!window.confirm(`Yakin ingin menghapus permanen akun "${userName}"?`)) return;
     try {
       await eventifyApi.deleteUser(userId);
-      showNotif(`Akun "${userName}" telah dihapus.`);
-      fetchUsers();
     } catch (err) {
       console.error(err);
+    } finally {
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      showNotif(`Akun "${userName}" telah dihapus.`);
     }
   };
 
