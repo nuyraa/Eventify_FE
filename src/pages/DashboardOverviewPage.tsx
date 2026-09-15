@@ -185,37 +185,44 @@ export const DashboardOverviewPage: React.FC = () => {
         </div>
 
         <div className="h-72 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={stats.daily_transactions}>
-              <defs>
-                <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#30E3B2" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#30E3B2" stopOpacity={0.0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="date" stroke="#2B2630" fontSize={12} tickLine={false} />
-              <YAxis stroke="#2B2630" fontSize={12} tickLine={false} />
-              <Tooltip
-                formatter={(val: any) => [formatRupiah(Number(val)), 'Pendapatan']}
-                contentStyle={{
-                  backgroundColor: '#FFFDF5',
-                  borderColor: '#2B2630',
-                  borderWidth: '2px',
-                  borderRadius: '12px',
-                  fontWeight: 'bold',
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                stroke="#2B2630"
-                strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#colorRev)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {stats.daily_transactions && stats.daily_transactions.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={stats.daily_transactions}>
+                <defs>
+                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#30E3B2" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#30E3B2" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="date" stroke="#2B2630" fontSize={12} tickLine={false} />
+                <YAxis stroke="#2B2630" fontSize={12} tickLine={false} />
+                <Tooltip
+                  formatter={(val: any) => [formatRupiah(Number(val)), 'Pendapatan']}
+                  contentStyle={{
+                    backgroundColor: '#FFFDF5',
+                    borderColor: '#2B2630',
+                    borderWidth: '2px',
+                    borderRadius: '12px',
+                    fontWeight: 'bold',
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#2B2630"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorRev)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center bg-neo-bg/50 rounded-xl border-2 border-dashed border-neo-dark/40 text-center p-6">
+              <p className="font-space font-extrabold text-sm text-neo-dark uppercase">Belum Ada Data Transaksi Grafik</p>
+              <p className="font-jakarta text-xs text-gray-500 font-semibold mt-1">Grafik tren akan otomatis muncul ketika ada transaksi penjualan tiket riil dari API.</p>
+            </div>
+          )}
         </div>
       </Card>
 

@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { Menu, LogOut, ShieldAlert, Server, Activity } from 'lucide-react';
+import { Menu, LogOut, Server, Activity } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSystem } from '../../context/SystemContext';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Switch } from '../ui/Switch';
 import { UserAvatar } from '../ui/UserAvatar';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -14,7 +13,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   const { user, logout } = useAuth();
-  const { config, apiStatus, toggleMaintenanceMode, checkApiHealth } = useSystem();
+  const { apiStatus, checkApiHealth } = useSystem();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   return (
@@ -50,24 +49,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           </div>
         </div>
 
-        {/* Right Section: Mobile Maintenance Switch, Admin User, Logout */}
+        {/* Right Section: Admin User & Logout */}
         <div className="flex items-center gap-4">
-          {/* Quick Maintenance Toggle Header Switch */}
-          <div className="hidden md:flex items-center gap-3 px-3.5 py-1.5 bg-white rounded-xl border-2.5 border-neo-dark shadow-neo-sm">
-            <div className="flex items-center gap-1.5 text-xs font-space font-extrabold text-neo-dark uppercase">
-              <ShieldAlert size={16} className={config.maintenance_mode ? 'text-neo-pink animate-bounce' : 'text-emerald-600'} />
-              <span>Mobile App:</span>
-            </div>
-            <Switch
-              checked={config.maintenance_mode}
-              onChange={toggleMaintenanceMode}
-            />
-            <span className={`font-space font-extrabold text-xs px-2 py-0.5 rounded border border-neo-dark ${
-              config.maintenance_mode ? 'bg-neo-pink text-neo-dark' : 'bg-neo-mint text-neo-dark'
-            }`}>
-              {config.maintenance_mode ? 'MAINTENANCE' : 'ONLINE'}
-            </span>
-          </div>
 
           {/* Admin Profile Initials Avatar */}
           <div className="flex items-center gap-3">
@@ -88,10 +71,10 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
               variant="danger"
               size="sm"
               icon={<LogOut size={16} />}
-              onClick={() => setShowLogoutModal(false)}
+              onClick={() => setShowLogoutModal(true)}
               title="Keluar dari sistem"
             >
-              <span className="hidden sm:inline" onClick={() => setShowLogoutModal(true)}>Keluar</span>
+              <span className="hidden sm:inline">Keluar</span>
             </Button>
           </div>
         </div>

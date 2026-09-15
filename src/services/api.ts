@@ -44,11 +44,11 @@ import {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: import.meta.env.DEV ? '/api/v1' : API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 3000,
+  timeout: 10000,
 });
 
 apiClient.interceptors.request.use(
@@ -79,7 +79,13 @@ const getStorageItem = <T>(key: string, initial: T): T => {
   const saved = localStorage.getItem(key);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      // Jika initial bernilai array kosong [] tapi di localStorage ada mock data lama, bersihkan localStorage
+      if (Array.isArray(initial) && initial.length === 0 && Array.isArray(parsed) && parsed.length > 0) {
+        localStorage.removeItem(key);
+        return initial;
+      }
+      return parsed;
     } catch {
       /* ignore */
     }
@@ -97,13 +103,13 @@ const normalizeEvent = (raw: any): EventItem => {
   if (!raw) return raw;
   const tiers = Array.isArray(raw.ticket_tiers || raw.tiers)
     ? (raw.ticket_tiers || raw.tiers).map((t: any, idx: number) => ({
-        id: String(t.id || `tier-${idx}`),
-        name: t.name || t.ticket_tier_name || 'Regular Tier',
-        price: Number(t.price ?? t.price_per_item ?? 0),
-        quota: Number(t.quota ?? 100),
-        sold: Number(t.sold ?? (t.quota !== undefined && t.remaining_quota !== undefined ? t.quota - t.remaining_quota : 0)),
-        description: t.description || '',
-      }))
+      id: String(t.id || `tier-${idx}`),
+      name: t.name || t.ticket_tier_name || 'Regular Tier',
+      price: Number(t.price ?? t.price_per_item ?? 0),
+      quota: Number(t.quota ?? 100),
+      sold: Number(t.sold ?? (t.quota !== undefined && t.remaining_quota !== undefined ? t.quota - t.remaining_quota : 0)),
+      description: t.description || '',
+    }))
     : [];
 
   const totalQuota = raw.total_quota !== undefined
@@ -168,12 +174,12 @@ const normalizeOrder = (raw: any): Order => {
   if (!raw) return raw;
   const items = Array.isArray(raw.items || raw.order_items)
     ? (raw.items || raw.order_items).map((item: any) => ({
-        ticket_tier_id: String(item.ticket_tier_id || item.tier_id || ''),
-        ticket_tier_name: item.ticket_tier_name || item.tier_name || 'Tiket',
-        quantity: Number(item.quantity || item.qty || 1),
-        price_per_item: Number(item.price_per_item || item.price || 0),
-        subtotal: Number(item.subtotal || (item.quantity * item.price_per_item) || 0),
-      }))
+      ticket_tier_id: String(item.ticket_tier_id || item.tier_id || ''),
+      ticket_tier_name: item.ticket_tier_name || item.tier_name || 'Tiket',
+      quantity: Number(item.quantity || item.qty || 1),
+      price_per_item: Number(item.price_per_item || item.price || 0),
+      subtotal: Number(item.subtotal || (item.quantity * item.price_per_item) || 0),
+    }))
     : [];
 
   return {
@@ -253,6 +259,39 @@ export const eventifyApi = {
 
   // --- Dashboard ---
   getDashboardStats: async (): Promise<DashboardStats> => {
+    try {
+      const res = await apiClient.get('/admin/dashboard');
+      const rawData = extractObjectData<any>(res.data);
+      if (rawData) {
+        return {
+          ...MOCK_DASHBOARD_STATS,
+          active_events: rawData.active_events ?? rawData.activeEvents ?? 0,
+          pending_approval_events: rawData.pending_approval_events ?? rawData.pendingEvents ?? 0,
+          total_users: rawData.total_users ?? rawData.totalUsers ?? 0,
+          total_organizers: rawData.total_organizers ?? rawData.totalOrganizers ?? 0,
+          tickets_sold: rawData.tickets_sold ?? rawData.ticketsSold ?? 0,
+          gate_scans: rawData.gate_scans ?? rawData.gateScans ?? MOCK_DASHBOARD_STATS.gate_scans,
+          total_revenue: Number(rawData.total_revenue ?? rawData.totalRevenue ?? rawData.revenue ?? rawData.total_amount ?? rawData.totalAmount ?? 0),
+          pending_tickets_count: rawData.pending_tickets_count ?? rawData.pendingTicketsCount ?? 0,
+          pending_refunds_count: rawData.pending_refunds_count ?? rawData.pendingRefundsCount ?? 0,
+          daily_transactions: Array.isArray(rawData.daily_transactions || rawData.dailyTransactions)
+            ? rawData.daily_transactions || rawData.dailyTransactions
+            : MOCK_DASHBOARD_STATS.daily_transactions,
+          recent_events: Array.isArray(rawData.recent_events)
+            ? rawData.recent_events.map(normalizeEvent)
+            : [],
+          recent_orders: Array.isArray(rawData.recent_orders)
+            ? rawData.recent_orders.map(normalizeOrder)
+            : [],
+          recent_activities: Array.isArray(rawData.recent_activities)
+            ? rawData.recent_activities
+            : [],
+        };
+      }
+    } catch (err) {
+      console.warn('Gagal mengambil stats dari /admin/dashboard, menggunakan gabungan data:', err);
+    }
+
     const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS).map(normalizeEvent);
     const users = getStorageItem('eventify_mock_users', INITIAL_MOCK_USERS).map(normalizeUser);
     const orders = getStorageItem('eventify_mock_orders', INITIAL_MOCK_ORDERS).map(normalizeOrder);
@@ -295,38 +334,59 @@ export const eventifyApi = {
   },
 
   createUser: async (user: Partial<User>): Promise<User> => {
-    const users = getStorageItem('eventify_mock_users', INITIAL_MOCK_USERS);
-    const newUser: User = {
-      id: `usr-${Date.now()}`,
-      name: user.name || 'User Baru',
-      email: user.email || '',
-      phone: user.phone || '',
-      role: user.role || 'customer',
-      organization: user.organization || '',
-      created_at: new Date().toISOString(),
-      status: 'active',
-      managed_events_count: user.role === 'organizer' ? 0 : undefined,
-    };
-    users.unshift(newUser);
-    setStorageItem('eventify_mock_users', users);
-    return newUser;
+    try {
+      const res = await apiClient.post('/admin/users', user);
+      return normalizeUser(extractObjectData<any>(res.data));
+    } catch {
+      const users = getStorageItem('eventify_mock_users', INITIAL_MOCK_USERS);
+      const newUser: User = {
+        id: `usr-${Date.now()}`,
+        name: user.name || 'User Baru',
+        email: user.email || '',
+        phone: user.phone || '',
+        role: user.role || 'customer',
+        organization: user.organization || '',
+        created_at: new Date().toISOString(),
+        status: 'active',
+        managed_events_count: user.role === 'organizer' ? 0 : undefined,
+      };
+      users.unshift(newUser);
+      setStorageItem('eventify_mock_users', users);
+      return newUser;
+    }
   },
 
   updateUser: async (id: string, updates: Partial<User>): Promise<User> => {
-    const users = getStorageItem('eventify_mock_users', INITIAL_MOCK_USERS);
-    const idx = users.findIndex((u) => u.id === id);
-    if (idx !== -1) {
-      users[idx] = { ...users[idx], ...updates };
-      setStorageItem('eventify_mock_users', users);
-      return users[idx];
+    try {
+      let res;
+      if (updates.role) {
+        res = await apiClient.put(`/admin/users/${id}/role`, { role: updates.role, role_id: updates.role === 'admin' ? 1 : updates.role === 'organizer' ? 2 : 3 });
+      } else {
+        res = await apiClient.put(`/admin/users/${id}`, updates);
+      }
+      return normalizeUser(extractObjectData<any>(res.data));
+    } catch {
+      const users = getStorageItem('eventify_mock_users', INITIAL_MOCK_USERS);
+      const idx = users.findIndex((u) => u.id === id);
+      if (idx !== -1) {
+        users[idx] = { ...users[idx], ...updates };
+        setStorageItem('eventify_mock_users', users);
+        return users[idx];
+      }
+      throw new Error('User tidak ditemukan');
     }
-    throw new Error('User tidak ditemukan');
   },
 
   deleteUser: async (id: string): Promise<void> => {
-    const users = getStorageItem('eventify_mock_users', INITIAL_MOCK_USERS);
-    const updated = users.filter((u) => u.id !== id);
-    setStorageItem('eventify_mock_users', updated);
+    try {
+      await apiClient.delete(`/admin/users/${id}`);
+    } catch (err) {
+      console.warn('API Delete user failed or endpoint not available, updating local state:', err);
+    } finally {
+      const users = getStorageItem('eventify_mock_users', INITIAL_MOCK_USERS);
+      const updated = users.filter((u) => u.id !== id);
+      setStorageItem('eventify_mock_users', updated);
+    }
   },
 
   // --- Events & Approval ---
@@ -347,95 +407,136 @@ export const eventifyApi = {
   },
 
   approveEvent: async (id: string, adminName: string): Promise<EventItem> => {
-    const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS);
-    const idx = events.findIndex((e) => e.id === id);
-    if (idx !== -1) {
-      events[idx] = {
-        ...events[idx],
-        status: 'published',
-        approved_by: adminName,
-        approved_at: new Date().toISOString(),
-      };
-      setStorageItem('eventify_mock_events', events);
+    try {
+      let res;
+      try {
+        res = await apiClient.put(`/admin/events/${id}/status`, { status: 'published', approved_by: adminName });
+      } catch {
+        res = await apiClient.post(`/admin/events/${id}/approve`, { admin_name: adminName });
+      }
+      return normalizeEvent(extractObjectData<any>(res.data));
+    } catch {
+      const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS);
+      const idx = events.findIndex((e) => e.id === id);
+      if (idx !== -1) {
+        events[idx] = {
+          ...events[idx],
+          status: 'published',
+          approved_by: adminName,
+          approved_at: new Date().toISOString(),
+        };
+        setStorageItem('eventify_mock_events', events);
 
-      // Log Approval
-      const logs = getStorageItem('eventify_mock_approval_logs', INITIAL_MOCK_APPROVAL_LOGS);
-      logs.unshift({
-        id: `app-${Date.now()}`,
-        event_id: id,
-        event_title: events[idx].title,
-        organizer_name: events[idx].organizer_name,
-        action: 'approve',
-        admin_name: adminName,
-        timestamp: new Date().toISOString(),
-      });
-      setStorageItem('eventify_mock_approval_logs', logs);
+        // Log Approval
+        const logs = getStorageItem('eventify_mock_approval_logs', INITIAL_MOCK_APPROVAL_LOGS);
+        logs.unshift({
+          id: `app-${Date.now()}`,
+          event_id: id,
+          event_title: events[idx].title,
+          organizer_name: events[idx].organizer_name,
+          action: 'approve',
+          admin_name: adminName,
+          timestamp: new Date().toISOString(),
+        });
+        setStorageItem('eventify_mock_approval_logs', logs);
 
-      return normalizeEvent(events[idx]);
+        return normalizeEvent(events[idx]);
+      }
+      throw new Error('Event tidak ditemukan');
     }
-    throw new Error('Event tidak ditemukan');
   },
 
   rejectEvent: async (id: string, adminName: string, reason: string): Promise<EventItem> => {
-    const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS);
-    const idx = events.findIndex((e) => e.id === id);
-    if (idx !== -1) {
-      events[idx] = {
-        ...events[idx],
-        status: 'rejected',
-        rejection_reason: reason,
-      };
-      setStorageItem('eventify_mock_events', events);
+    try {
+      let res;
+      try {
+        res = await apiClient.put(`/admin/events/${id}/status`, { status: 'rejected', rejection_reason: reason });
+      } catch {
+        res = await apiClient.post(`/admin/events/${id}/reject`, { admin_name: adminName, reason });
+      }
+      return normalizeEvent(extractObjectData<any>(res.data));
+    } catch {
+      const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS);
+      const idx = events.findIndex((e) => e.id === id);
+      if (idx !== -1) {
+        events[idx] = {
+          ...events[idx],
+          status: 'rejected',
+          rejection_reason: reason,
+        };
+        setStorageItem('eventify_mock_events', events);
 
-      // Log Rejection
-      const logs = getStorageItem('eventify_mock_approval_logs', INITIAL_MOCK_APPROVAL_LOGS);
-      logs.unshift({
-        id: `app-${Date.now()}`,
-        event_id: id,
-        event_title: events[idx].title,
-        organizer_name: events[idx].organizer_name,
-        action: 'reject',
-        admin_name: adminName,
-        reason,
-        timestamp: new Date().toISOString(),
-      });
-      setStorageItem('eventify_mock_approval_logs', logs);
+        // Log Rejection
+        const logs = getStorageItem('eventify_mock_approval_logs', INITIAL_MOCK_APPROVAL_LOGS);
+        logs.unshift({
+          id: `app-${Date.now()}`,
+          event_id: id,
+          event_title: events[idx].title,
+          organizer_name: events[idx].organizer_name,
+          action: 'reject',
+          admin_name: adminName,
+          reason,
+          timestamp: new Date().toISOString(),
+        });
+        setStorageItem('eventify_mock_approval_logs', logs);
 
-      return normalizeEvent(events[idx]);
+        return normalizeEvent(events[idx]);
+      }
+      throw new Error('Event tidak ditemukan');
     }
-    throw new Error('Event tidak ditemukan');
   },
 
   forceUnpublishEvent: async (id: string, _adminName: string, reason: string): Promise<EventItem> => {
-    const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS);
-    const idx = events.findIndex((e) => e.id === id);
-    if (idx !== -1) {
-      events[idx] = {
-        ...events[idx],
-        status: 'suspended',
-        rejection_reason: reason,
-      };
-      setStorageItem('eventify_mock_events', events);
-      return normalizeEvent(events[idx]);
+    try {
+      let res;
+      try {
+        res = await apiClient.put(`/admin/events/${id}/status`, { status: 'suspended', rejection_reason: reason });
+      } catch {
+        res = await apiClient.post(`/admin/events/${id}/unpublish`, { reason });
+      }
+      return normalizeEvent(extractObjectData<any>(res.data));
+    } catch {
+      const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS);
+      const idx = events.findIndex((e) => e.id === id);
+      if (idx !== -1) {
+        events[idx] = {
+          ...events[idx],
+          status: 'suspended',
+          rejection_reason: reason,
+        };
+        setStorageItem('eventify_mock_events', events);
+        return normalizeEvent(events[idx]);
+      }
+      throw new Error('Event tidak ditemukan');
     }
-    throw new Error('Event tidak ditemukan');
   },
 
   updateEventStatus: async (id: string, status: EventStatus): Promise<EventItem> => {
-    const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS);
-    const idx = events.findIndex((e) => e.id === id);
-    if (idx !== -1) {
-      events[idx] = { ...events[idx], status };
-      setStorageItem('eventify_mock_events', events);
-      return normalizeEvent(events[idx]);
+    try {
+      const res = await apiClient.put(`/admin/events/${id}/status`, { status });
+      return normalizeEvent(extractObjectData<any>(res.data));
+    } catch {
+      const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS);
+      const idx = events.findIndex((e) => e.id === id);
+      if (idx !== -1) {
+        events[idx] = { ...events[idx], status };
+        setStorageItem('eventify_mock_events', events);
+        return normalizeEvent(events[idx]);
+      }
+      throw new Error('Event tidak ditemukan');
     }
-    throw new Error('Event tidak ditemukan');
   },
 
   deleteEvent: async (id: string): Promise<void> => {
     try {
-      await apiClient.delete(`/admin/events/${id}`);
-    } catch {
+      try {
+        await apiClient.delete(`/admin/events/${id}`);
+      } catch {
+        await apiClient.delete(`/organizer/events/${id}`);
+      }
+    } catch (err) {
+      console.warn('API delete event error, cleaning up local state:', err);
+    } finally {
       const events = getStorageItem('eventify_mock_events', INITIAL_MOCK_EVENTS);
       const updated = events.filter((e) => e.id !== id);
       setStorageItem('eventify_mock_events', updated);
@@ -443,52 +544,87 @@ export const eventifyApi = {
   },
 
   getApprovalLogs: async (): Promise<ApprovalLog[]> => {
-    return getStorageItem('eventify_mock_approval_logs', INITIAL_MOCK_APPROVAL_LOGS);
+    try {
+      const res = await apiClient.get('/admin/events/approval-logs');
+      const data = extractArrayData<ApprovalLog>(res.data);
+      if (data.length > 0) return data;
+      return getStorageItem('eventify_mock_approval_logs', INITIAL_MOCK_APPROVAL_LOGS);
+    } catch {
+      return getStorageItem('eventify_mock_approval_logs', INITIAL_MOCK_APPROVAL_LOGS);
+    }
   },
 
   getCategories: async (): Promise<EventCategory[]> => {
-    return getStorageItem('eventify_mock_categories', INITIAL_MOCK_CATEGORIES);
+    try {
+      const res = await apiClient.get('/categories');
+      const data = extractArrayData<EventCategory>(res.data);
+      if (data.length > 0) return data;
+      return getStorageItem('eventify_mock_categories', INITIAL_MOCK_CATEGORIES);
+    } catch {
+      return getStorageItem('eventify_mock_categories', INITIAL_MOCK_CATEGORIES);
+    }
   },
 
   saveCategory: async (category: Partial<EventCategory>): Promise<EventCategory> => {
-    const categories = getStorageItem('eventify_mock_categories', INITIAL_MOCK_CATEGORIES);
-    if (category.id) {
-      const idx = categories.findIndex((c) => c.id === category.id);
-      if (idx !== -1) {
-        categories[idx] = { ...categories[idx], ...category };
-        setStorageItem('eventify_mock_categories', categories);
-        return categories[idx];
+    try {
+      if (category.id) {
+        const res = await apiClient.put(`/admin/categories/${category.id}`, category);
+        return extractObjectData<EventCategory>(res.data);
       }
+      const res = await apiClient.post('/admin/categories', category);
+      return extractObjectData<EventCategory>(res.data);
+    } catch {
+      const categories = getStorageItem('eventify_mock_categories', INITIAL_MOCK_CATEGORIES);
+      if (category.id) {
+        const idx = categories.findIndex((c) => c.id === category.id);
+        if (idx !== -1) {
+          categories[idx] = { ...categories[idx], ...category };
+          setStorageItem('eventify_mock_categories', categories);
+          return categories[idx];
+        }
+      }
+      const newCat: EventCategory = {
+        id: `cat-${Date.now()}`,
+        name: category.name || 'Kategori Baru',
+        slug: (category.name || 'kategori').toLowerCase().replace(/\s+/g, '-'),
+        event_count: 0,
+      };
+      categories.push(newCat);
+      setStorageItem('eventify_mock_categories', categories);
+      return newCat;
     }
-    const newCat: EventCategory = {
-      id: `cat-${Date.now()}`,
-      name: category.name || 'Kategori Baru',
-      slug: (category.name || 'kategori').toLowerCase().replace(/\s+/g, '-'),
-      event_count: 0,
-    };
-    categories.push(newCat);
-    setStorageItem('eventify_mock_categories', categories);
-    return newCat;
   },
 
   // --- Participants & Tickets ---
   getParticipants: async (): Promise<Participant[]> => {
-    return getStorageItem('eventify_mock_participants', INITIAL_MOCK_PARTICIPANTS);
+    try {
+      const res = await apiClient.get('/admin/participants');
+      const data = extractArrayData<Participant>(res.data);
+      if (data.length > 0) return data;
+      return getStorageItem('eventify_mock_participants', INITIAL_MOCK_PARTICIPANTS);
+    } catch {
+      return getStorageItem('eventify_mock_participants', INITIAL_MOCK_PARTICIPANTS);
+    }
   },
 
   updateCheckIn: async (participantId: string): Promise<Participant> => {
-    const participants = getStorageItem('eventify_mock_participants', INITIAL_MOCK_PARTICIPANTS);
-    const idx = participants.findIndex((p) => p.id === participantId);
-    if (idx !== -1) {
-      participants[idx] = {
-        ...participants[idx],
-        registration_status: 'checked_in',
-        check_in_time: new Date().toISOString(),
-      };
-      setStorageItem('eventify_mock_participants', participants);
-      return participants[idx];
+    try {
+      const res = await apiClient.post(`/admin/participants/${participantId}/check-in`);
+      return extractObjectData<Participant>(res.data);
+    } catch {
+      const participants = getStorageItem('eventify_mock_participants', INITIAL_MOCK_PARTICIPANTS);
+      const idx = participants.findIndex((p) => p.id === participantId);
+      if (idx !== -1) {
+        participants[idx] = {
+          ...participants[idx],
+          registration_status: 'checked_in',
+          check_in_time: new Date().toISOString(),
+        };
+        setStorageItem('eventify_mock_participants', participants);
+        return participants[idx];
+      }
+      throw new Error('Peserta tidak ditemukan');
     }
-    throw new Error('Peserta tidak ditemukan');
   },
 
   // --- Orders & Finance ---
@@ -504,52 +640,76 @@ export const eventifyApi = {
   },
 
   getRefunds: async (): Promise<RefundRequest[]> => {
-    return getStorageItem('eventify_mock_refunds', INITIAL_MOCK_REFUNDS);
+    try {
+      const res = await apiClient.get('/admin/refunds');
+      const data = extractArrayData<RefundRequest>(res.data);
+      if (data.length > 0) return data;
+      return getStorageItem('eventify_mock_refunds', INITIAL_MOCK_REFUNDS);
+    } catch {
+      return getStorageItem('eventify_mock_refunds', INITIAL_MOCK_REFUNDS);
+    }
   },
 
   updateRefundStatus: async (id: string, status: 'approved' | 'rejected'): Promise<RefundRequest> => {
-    const refunds = getStorageItem('eventify_mock_refunds', INITIAL_MOCK_REFUNDS);
-    const idx = refunds.findIndex((r) => r.id === id);
-    if (idx !== -1) {
-      refunds[idx] = {
-        ...refunds[idx],
-        status,
-        processed_at: new Date().toISOString(),
-      };
-      setStorageItem('eventify_mock_refunds', refunds);
+    try {
+      const res = await apiClient.post(`/admin/refunds/${id}/status`, { status });
+      return extractObjectData<RefundRequest>(res.data);
+    } catch {
+      const refunds = getStorageItem('eventify_mock_refunds', INITIAL_MOCK_REFUNDS);
+      const idx = refunds.findIndex((r) => r.id === id);
+      if (idx !== -1) {
+        refunds[idx] = {
+          ...refunds[idx],
+          status,
+          processed_at: new Date().toISOString(),
+        };
+        setStorageItem('eventify_mock_refunds', refunds);
 
-      // If approved, update order status to refunded
-      if (status === 'approved') {
-        const orders = getStorageItem('eventify_mock_orders', INITIAL_MOCK_ORDERS);
-        const oIdx = orders.findIndex((o) => o.order_code === refunds[idx].order_code);
-        if (oIdx !== -1) {
-          orders[oIdx].status = 'refunded';
-          setStorageItem('eventify_mock_orders', orders);
+        // If approved, update order status to refunded
+        if (status === 'approved') {
+          const orders = getStorageItem('eventify_mock_orders', INITIAL_MOCK_ORDERS);
+          const oIdx = orders.findIndex((o) => o.order_code === refunds[idx].order_code);
+          if (oIdx !== -1) {
+            orders[oIdx].status = 'refunded';
+            setStorageItem('eventify_mock_orders', orders);
+          }
         }
-      }
 
-      return refunds[idx];
+        return refunds[idx];
+      }
+      throw new Error('Klaim refund tidak ditemukan');
     }
-    throw new Error('Klaim refund tidak ditemukan');
   },
 
   getPayouts: async (): Promise<PayoutRecord[]> => {
-    return getStorageItem('eventify_mock_payouts', INITIAL_MOCK_PAYOUTS);
+    try {
+      const res = await apiClient.get('/admin/payouts');
+      const data = extractArrayData<PayoutRecord>(res.data);
+      if (data.length > 0) return data;
+      return getStorageItem('eventify_mock_payouts', INITIAL_MOCK_PAYOUTS);
+    } catch {
+      return getStorageItem('eventify_mock_payouts', INITIAL_MOCK_PAYOUTS);
+    }
   },
 
   processPayout: async (id: string): Promise<PayoutRecord> => {
-    const payouts = getStorageItem('eventify_mock_payouts', INITIAL_MOCK_PAYOUTS);
-    const idx = payouts.findIndex((p) => p.id === id);
-    if (idx !== -1) {
-      payouts[idx] = {
-        ...payouts[idx],
-        status: 'transferred',
-        processed_at: new Date().toISOString(),
-      };
-      setStorageItem('eventify_mock_payouts', payouts);
-      return payouts[idx];
+    try {
+      const res = await apiClient.post(`/admin/payouts/${id}/process`);
+      return extractObjectData<PayoutRecord>(res.data);
+    } catch {
+      const payouts = getStorageItem('eventify_mock_payouts', INITIAL_MOCK_PAYOUTS);
+      const idx = payouts.findIndex((p) => p.id === id);
+      if (idx !== -1) {
+        payouts[idx] = {
+          ...payouts[idx],
+          status: 'transferred',
+          processed_at: new Date().toISOString(),
+        };
+        setStorageItem('eventify_mock_payouts', payouts);
+        return payouts[idx];
+      }
+      throw new Error('Payout tidak ditemukan');
     }
-    throw new Error('Payout tidak ditemukan');
   },
 
   // --- Support & Notifications ---

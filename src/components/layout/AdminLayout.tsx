@@ -2,16 +2,11 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from '../common/Sidebar';
 import { Header } from '../common/Header';
-import { MaintenanceBanner } from '../common/MaintenanceBanner';
-
 export const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-neo-bg text-neo-dark flex flex-col font-jakarta">
-      {/* Maintenance Mode Alert Banner */}
-      <MaintenanceBanner />
-
       {/* Main Sidebar */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

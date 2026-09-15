@@ -10,7 +10,6 @@ import {
   BarChart3,
   Bell,
   ShieldCheck,
-  Settings,
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 
@@ -68,11 +67,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: 'Keamanan & Audit Log',
       path: '/admin/security',
       icon: <ShieldCheck size={19} />,
-    },
-    {
-      label: 'Pengaturan Sistem',
-      path: '/admin/settings',
-      icon: <Settings size={19} />,
     },
   ];
 
