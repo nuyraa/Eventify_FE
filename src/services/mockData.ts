@@ -26,7 +26,66 @@ export const INITIAL_MOCK_EVENTS: EventItem[] = [];
 
 export const INITIAL_MOCK_ORDERS: Order[] = [];
 
-export const INITIAL_MOCK_PARTICIPANTS: Participant[] = [];
+export const INITIAL_MOCK_PARTICIPANTS: Participant[] = [
+  {
+    id: 'PT-101',
+    event_id: 'EVT-001',
+    event_title: 'Soundfest Music Festival 2026',
+    user_name: 'Nayla Putri',
+    user_email: 'nayla.putri@gmail.com',
+    ticket_tier_name: 'VIP Frontstage & Regular Festival',
+    registration_status: 'confirmed',
+    registered_at: '2026-09-10T14:32:00Z',
+    tickets: [
+      { id: 'TCK-101-1', ticket_code: 'EVT1-VIP-001', ticket_tier_name: 'VIP FRONTSTAGE', is_checked_in: true, check_in_time: '2026-09-16T18:45:00Z' },
+      { id: 'TCK-101-2', ticket_code: 'EVT1-VIP-002', ticket_tier_name: 'VIP FRONTSTAGE', is_checked_in: true, check_in_time: '2026-09-16T18:45:00Z' },
+      { id: 'TCK-101-3', ticket_code: 'EVT1-REG-001', ticket_tier_name: 'REGULAR FESTIVAL', is_checked_in: false },
+    ],
+  },
+  {
+    id: 'PT-102',
+    event_id: 'EVT-001',
+    event_title: 'Soundfest Music Festival 2026',
+    user_name: 'Budi Santoso',
+    user_email: 'budi.santoso@yahoo.com',
+    ticket_tier_name: 'VIP Frontstage',
+    registration_status: 'checked_in',
+    check_in_time: '2026-09-16T17:30:00Z',
+    registered_at: '2026-09-11T09:15:00Z',
+    tickets: [
+      { id: 'TCK-102-1', ticket_code: 'EVT1-VIP-003', ticket_tier_name: 'VIP FRONTSTAGE', is_checked_in: true, check_in_time: '2026-09-16T17:30:00Z' },
+      { id: 'TCK-102-2', ticket_code: 'EVT1-VIP-004', ticket_tier_name: 'VIP FRONTSTAGE', is_checked_in: true, check_in_time: '2026-09-16T17:30:00Z' },
+    ],
+  },
+  {
+    id: 'PT-103',
+    event_id: 'EVT-002',
+    event_title: 'Indonesia Tech Summit & Expo 2026',
+    user_name: 'Rian Perdana',
+    user_email: 'rian.perdana@techmail.id',
+    ticket_tier_name: 'Regular Pass',
+    registration_status: 'confirmed',
+    registered_at: '2026-09-12T11:20:00Z',
+    tickets: [
+      { id: 'TCK-103-1', ticket_code: 'EVT2-REG-001', ticket_tier_name: 'REGULAR PASS', is_checked_in: false },
+    ],
+  },
+  {
+    id: 'PT-104',
+    event_id: 'EVT-003',
+    event_title: 'Startup Founder Meetup & Pitching',
+    user_name: 'Siti Rahma',
+    user_email: 'siti.rahma@gmail.com',
+    ticket_tier_name: 'VIP Pass',
+    registration_status: 'confirmed',
+    registered_at: '2026-09-14T16:00:00Z',
+    tickets: [
+      { id: 'TCK-104-1', ticket_code: 'EVT3-VIP-001', ticket_tier_name: 'VIP PASS', is_checked_in: false },
+      { id: 'TCK-104-2', ticket_code: 'EVT3-VIP-002', ticket_tier_name: 'VIP PASS', is_checked_in: false },
+      { id: 'TCK-104-3', ticket_code: 'EVT3-VIP-003', ticket_tier_name: 'VIP PASS', is_checked_in: false },
+    ],
+  },
+];
 
 export const INITIAL_MOCK_APPROVAL_LOGS: ApprovalLog[] = [];
 

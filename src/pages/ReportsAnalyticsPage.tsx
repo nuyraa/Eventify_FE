@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { eventifyApi } from '../services/api';
 import type { EventItem, User } from '../types';
 import {
-  BarChart3,
-  Printer,
   PieChart as PieIcon,
   Award,
   TrendingUp,
@@ -47,10 +45,6 @@ export const ReportsAnalyticsPage: React.FC = () => {
     }
   };
 
-  const handlePrintPDF = () => {
-    window.print();
-  };
-
   const exportReportCSV = () => {
     const headers = ['Judul Event', 'Penyelenggara', 'Kategori', 'Tiket Terjual', 'Total Quota', 'Omset Event'];
     const rows = events.map((e) => [
@@ -89,25 +83,17 @@ export const ReportsAnalyticsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 font-jakarta">
-      {/* Header Banner */}
+      {/* Header Banner Clean */}
       <div className="p-6 bg-neo-toska rounded-2xl border-3 border-neo-dark shadow-neo flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="font-space font-extrabold text-2xl md:text-3xl text-neo-dark flex items-center gap-3">
-            <BarChart3 size={32} /> Laporan & Analitik Performa
+          <h1 className="font-space font-extrabold text-2xl md:text-3xl text-neo-dark">
+            Laporan
           </h1>
-          <p className="font-jakarta font-semibold text-xs md:text-sm text-neo-dark/80 mt-1">
-            Laporan tingkat pendaftaran event, performa instansi panitia, demografi peserta, dan ekspor dokumen.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button onClick={handlePrintPDF} variant="secondary" icon={<Printer size={16} />}>
-            Cetak PDF
-          </Button>
-          <Button onClick={exportReportCSV} variant="primary" icon={<FileSpreadsheet size={16} />}>
-            Export Excel / CSV
-          </Button>
-        </div>
+        <Button onClick={exportReportCSV} variant="secondary" icon={<FileSpreadsheet size={16} />}>
+          Export Data Excel
+        </Button>
       </div>
 
       {/* Grid Charts */}
@@ -169,15 +155,23 @@ export const ReportsAnalyticsPage: React.FC = () => {
         <h3 className="font-space font-extrabold text-base text-neo-dark mb-4 flex items-center gap-2">
           <Award size={20} className="text-neo-dark" /> Leaderboard Panitia / Organizer Terbaik
         </h3>
-        <Table headers={['Peringkat', 'Nama Instansi Panitia', 'Penanggung Jawab', 'Total Event Dikelola', 'Tingkat Kehadiran']}>
+        <Table
+          headers={[
+            { label: 'Peringkat', align: 'center', className: 'w-[12%]' },
+            { label: 'Nama Instansi Panitia', align: 'left', className: 'w-[30%]' },
+            { label: 'Penanggung Jawab', align: 'left', className: 'w-[28%]' },
+            { label: 'Total Event Dikelola', align: 'center', className: 'w-[16%]' },
+            { label: 'Tingkat Kehadiran', align: 'center', className: 'w-[14%]' },
+          ]}
+        >
           {organizers.map((o, idx) => (
-            <tr key={o.id} className="hover:bg-neo-yellow/15 transition-colors">
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-black text-xs text-center">#{idx + 1}</td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-extrabold text-xs">{o.organization || 'Instansi Panitia'}</td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta text-xs">{o.name}</td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-bold text-xs">{o.managed_events_count || 3} Event</td>
-              <td className="px-4 py-3 text-xs">
-                <Badge variant="mint">96.4% OK</Badge>
+            <tr key={o.id} className="hover:bg-neo-yellow/10 transition-colors border-b border-neo-dark/20">
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle font-space font-black text-xs">#{idx + 1}</td>
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark align-middle font-space font-extrabold text-xs">{o.organization || 'Instansi Panitia'}</td>
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark align-middle font-jakarta text-xs font-bold text-neo-dark">{o.name}</td>
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle font-space font-bold text-xs">{o.managed_events_count || 3} Event</td>
+              <td className="px-4 py-3.5 text-center align-middle">
+                <Badge variant="mint" className="inline-flex justify-center min-w-[85px]">96.4% OK</Badge>
               </td>
             </tr>
           ))}

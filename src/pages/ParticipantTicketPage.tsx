@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { eventifyApi } from '../services/api';
-import type { Participant, EventItem } from '../types';
+import type { Participant, ParticipantTicketItem, EventItem } from '../types';
 import {
-  Ticket,
   Search,
   Download,
-  QrCode,
   CheckCircle2,
+  Ticket,
+  QrCode,
+  UserCheck,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Table } from '../components/ui/Table';
 import { Badge } from '../components/ui/Badge';
+import { Modal } from '../components/ui/Modal';
 
 export const ParticipantTicketPage: React.FC = () => {
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -21,6 +23,9 @@ export const ParticipantTicketPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Multi-Ticket Gate Modal State
+  const [selectedParticipantModal, setSelectedParticipantModal] = useState<Participant | null>(null);
 
   useEffect(() => {
     loadData();
@@ -44,38 +49,139 @@ export const ParticipantTicketPage: React.FC = () => {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const handleManualCheckIn = async (pt: Participant) => {
+  const handleCheckInSingleTicket = async (pt: Participant, ticketId: string) => {
     try {
-      await eventifyApi.updateCheckIn(pt.id);
-      showNotif(`Manual Check-in berhasil untuk peserta ${pt.user_name}!`);
+      const updatedPt = await eventifyApi.updateCheckIn(pt.id, ticketId);
+      showNotif(`Check-in berhasil untuk tiket ${ticketId} (${pt.user_name})!`);
       loadData();
+      if (selectedParticipantModal?.id === pt.id) {
+        setSelectedParticipantModal(updatedPt);
+      }
     } catch (err: any) {
       alert(err.message);
     }
   };
 
-  const exportParticipantsCSV = () => {
-    const headers = ['ID', 'Nama Peserta', 'Email', 'Event', 'Tier Tiket', 'Status', 'Waktu Check-in'];
-    const rows = filteredParticipants.map((p) => [
-      p.id,
-      `"${p.user_name}"`,
-      p.user_email,
-      `"${p.event_title}"`,
-      `"${p.ticket_tier_name}"`,
-      p.registration_status,
-      p.check_in_time ? new Date(p.check_in_time).toLocaleString('id-ID') : '-',
-    ]);
+  const handleCheckInAllTickets = async (pt: Participant) => {
+    try {
+      const updatedPt = await eventifyApi.updateCheckIn(pt.id);
+      showNotif(`Check-in SEMUA tiket berhasil untuk ${pt.user_name}!`);
+      loadData();
+      if (selectedParticipantModal?.id === pt.id) {
+        setSelectedParticipantModal(updatedPt);
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+  const exportParticipantsExcel = () => {
+    const xmlRows = filteredParticipants.map((p) => {
+      const ticketsInfo = getParticipantTicketSummary(p)
+        .map((cat) => `${cat.count}x ${cat.tierName}`)
+        .join(', ');
+      const checkInStatusText = getCheckInStatusInfo(p).statusLabel;
+
+      return `
+      <Row>
+        <Cell><Data ss:Type="String">${p.id}</Data></Cell>
+        <Cell><Data ss:Type="String">${p.user_name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</Data></Cell>
+        <Cell><Data ss:Type="String">${p.user_email}</Data></Cell>
+        <Cell><Data ss:Type="String">${p.event_title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</Data></Cell>
+        <Cell><Data ss:Type="String">${ticketsInfo}</Data></Cell>
+        <Cell><Data ss:Type="String">${checkInStatusText}</Data></Cell>
+        <Cell><Data ss:Type="String">${new Date(p.registered_at).toLocaleDateString('id-ID')}</Data></Cell>
+      </Row>`;
+    }).join('');
+
+    const excelTemplate = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#1F2937" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Data Peserta Tiket">
+  <Table>
+   <Column ss:Width="100"/>
+   <Column ss:Width="180"/>
+   <Column ss:Width="200"/>
+   <Column ss:Width="220"/>
+   <Column ss:Width="220"/>
+   <Column ss:Width="140"/>
+   <Column ss:Width="140"/>
+   <Row ss:StyleID="Header">
+    <Cell><Data ss:Type="String">ID Peserta</Data></Cell>
+    <Cell><Data ss:Type="String">Nama Peserta</Data></Cell>
+    <Cell><Data ss:Type="String">Email</Data></Cell>
+    <Cell><Data ss:Type="String">Event Terdaftar</Data></Cell>
+    <Cell><Data ss:Type="String">Kategori Tiket</Data></Cell>
+    <Cell><Data ss:Type="String">Status Check-in</Data></Cell>
+    <Cell><Data ss:Type="String">Tanggal Daftar</Data></Cell>
+   </Row>
+   ${xmlRows}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Eventify_Participants_Export_${Date.now()}.csv`);
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `Eventify_Data_Peserta_${Date.now()}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Helper untuk menghitung jumlah tiket per kategori untuk satu peserta
+  const getParticipantTicketSummary = (p: Participant) => {
+    if (!p.tickets || p.tickets.length === 0) {
+      return [{ tierName: p.ticket_tier_name.toUpperCase(), count: 1 }];
+    }
+    const counts: Record<string, number> = {};
+    p.tickets.forEach((t) => {
+      const tier = t.ticket_tier_name.toUpperCase();
+      counts[tier] = (counts[tier] || 0) + 1;
+    });
+    return Object.keys(counts).map((tierName) => ({
+      tierName,
+      count: counts[tierName],
+    }));
+  };
+
+  // Helper untuk statistik Check-in per peserta
+  const getCheckInStatusInfo = (p: Participant) => {
+    if (!p.tickets || p.tickets.length === 0) {
+      const isChecked = p.registration_status === 'checked_in';
+      return {
+        total: 1,
+        checkedIn: isChecked ? 1 : 0,
+        statusLabel: isChecked ? '1/1 Checked-in' : '0/1 Checked-in',
+        badgeVariant: isChecked ? ('mint' as const) : ('pink' as const),
+        isAllCheckedIn: isChecked,
+      };
+    }
+
+    const total = p.tickets.length;
+    const checkedIn = p.tickets.filter((t) => t.is_checked_in).length;
+
+    let badgeVariant: 'mint' | 'yellow' | 'pink' = 'pink';
+    if (checkedIn === total) badgeVariant = 'mint';
+    else if (checkedIn > 0) badgeVariant = 'yellow';
+
+    return {
+      total,
+      checkedIn,
+      statusLabel: `${checkedIn}/${total} Checked-in`,
+      badgeVariant,
+      isAllCheckedIn: checkedIn === total,
+    };
   };
 
   const filteredParticipants = participants.filter((p) => {
@@ -84,13 +190,15 @@ export const ParticipantTicketPage: React.FC = () => {
       p.user_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.event_title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesEvent = selectedEventId === 'all' || p.event_id === selectedEventId;
-    const matchesStatus = statusFilter === 'all' || p.registration_status === statusFilter;
+
+    const statusInfo = getCheckInStatusInfo(p);
+    let matchesStatus = true;
+    if (statusFilter === 'checked_in') matchesStatus = statusInfo.isAllCheckedIn;
+    if (statusFilter === 'partial') matchesStatus = statusInfo.checkedIn > 0 && !statusInfo.isAllCheckedIn;
+    if (statusFilter === 'unscanned') matchesStatus = statusInfo.checkedIn === 0;
+
     return matchesSearch && matchesEvent && matchesStatus;
   });
-
-  const checkedInCount = filteredParticipants.filter((p) => p.registration_status === 'checked_in').length;
-  const totalCount = filteredParticipants.length || 1;
-  const checkInRate = Math.round((checkedInCount / totalCount) * 100);
 
   return (
     <div className="space-y-6 font-jakarta">
@@ -102,50 +210,18 @@ export const ParticipantTicketPage: React.FC = () => {
         </div>
       )}
 
-      {/* Header Banner */}
+      {/* Header Banner Clean */}
       <div className="p-6 bg-neo-toska rounded-2xl border-3 border-neo-dark shadow-neo flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="font-space font-extrabold text-2xl md:text-3xl text-neo-dark flex items-center gap-3">
-            <Ticket size={32} /> Pendaftaran & Monitoring Tiket
+          <h1 className="font-space font-extrabold text-2xl md:text-3xl text-neo-dark">
+            Pendaftaran & Tiket
           </h1>
-          <p className="font-jakarta font-semibold text-xs md:text-sm text-neo-dark/80 mt-1">
-            Monitoring pendaftaran peserta lintas event, gate check-in venue real-time, dan ekspor data peserta.
-          </p>
         </div>
 
-        <Button onClick={exportParticipantsCSV} variant="secondary" icon={<Download size={18} />} className="shrink-0">
-          Export Peserta CSV
+        <Button onClick={exportParticipantsExcel} variant="secondary" icon={<Download size={18} />} className="shrink-0">
+          Export Data Excel
         </Button>
       </div>
-
-      {/* Realtime Check-in Widget */}
-      <Card className="bg-neo-yellow/30 border-3 border-neo-dark">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-neo-yellow rounded-xl border-2.5 border-neo-dark shadow-neo-sm">
-              <QrCode size={28} className="text-neo-dark" />
-            </div>
-            <div>
-              <h3 className="font-space font-extrabold text-base text-neo-dark">
-                Monitoring Gate Check-in Real-time
-              </h3>
-              <p className="font-jakarta text-xs font-semibold text-gray-600">
-                {checkedInCount} dari {totalCount} Peserta Sudah Check-in di Venue ({checkInRate}%)
-              </p>
-            </div>
-          </div>
-
-          <div className="w-full sm:w-64 bg-white p-2.5 rounded-xl border-2 border-neo-dark shadow-neo-sm">
-            <div className="flex justify-between font-space font-extrabold text-xs mb-1">
-              <span>Kehadiran Venue</span>
-              <span>{checkInRate}%</span>
-            </div>
-            <div className="w-full h-3 bg-gray-200 rounded-full border border-neo-dark overflow-hidden">
-              <div className="h-full bg-neo-mint transition-all" style={{ width: `${checkInRate}%` }} />
-            </div>
-          </div>
-        </div>
-      </Card>
 
       {/* Filters & Directory Table */}
       <Card className="bg-white border-3">
@@ -160,7 +236,7 @@ export const ParticipantTicketPage: React.FC = () => {
           <select
             value={selectedEventId}
             onChange={(e) => setSelectedEventId(e.target.value)}
-            className="p-2.5 bg-white rounded-xl border-2.5 border-neo-dark font-space font-bold text-xs shadow-neo-sm focus:outline-none"
+            className="p-2.5 bg-white rounded-xl border-2.5 border-neo-dark font-space font-bold text-xs shadow-neo-sm focus:outline-none cursor-pointer"
           >
             <option value="all">Semua Event</option>
             {events.map((e) => (
@@ -171,53 +247,189 @@ export const ParticipantTicketPage: React.FC = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="p-2.5 bg-white rounded-xl border-2.5 border-neo-dark font-space font-bold text-xs shadow-neo-sm focus:outline-none"
+            className="p-2.5 bg-white rounded-xl border-2.5 border-neo-dark font-space font-bold text-xs shadow-neo-sm focus:outline-none cursor-pointer"
           >
             <option value="all">Semua Status Check-in</option>
-            <option value="checked_in">Checked-in (Sudah Masuk)</option>
-            <option value="confirmed">Confirmed (Belum Scan)</option>
-            <option value="pending">Pending</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="checked_in">Sudah Masuk Semua</option>
+            <option value="partial">Sebagian Masuk</option>
+            <option value="unscanned">Belum Scan (0 Masuk)</option>
           </select>
         </div>
 
-        {/* Directory Table */}
-        <Table headers={['Nama Peserta', 'Event Terdaftar', 'Kategori Tier Tiket', 'Tanggal Daftar', 'Status Check-in', 'Aksi Gate']}>
-          {filteredParticipants.map((p) => (
-            <tr key={p.id} className="hover:bg-neo-yellow/15 transition-colors">
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-bold text-xs">
-                <p className="text-neo-dark font-extrabold">{p.user_name}</p>
-                <p className="font-jakarta text-[11px] text-gray-500 font-semibold">{p.user_email}</p>
-              </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-bold text-xs">
-                {p.event_title}
-              </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark text-xs">
-                <Badge variant="yellow">{p.ticket_tier_name}</Badge>
-              </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta text-xs font-semibold">
-                {new Date(p.registered_at).toLocaleDateString('id-ID')}
-              </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark text-xs">
-                <Badge variant={p.registration_status === 'checked_in' ? 'mint' : 'pink'}>
-                  {p.registration_status.toUpperCase()}
-                </Badge>
-              </td>
-              <td className="px-4 py-3">
-                {p.registration_status !== 'checked_in' ? (
-                  <Button onClick={() => handleManualCheckIn(p)} variant="primary" size="sm">
-                    Scan Manual
-                  </Button>
-                ) : (
-                  <span className="font-jakarta text-[11px] font-extrabold text-emerald-800">
-                    Masuk: {new Date(p.check_in_time || '').toLocaleTimeString('id-ID')}
-                  </span>
-                )}
-              </td>
-            </tr>
-          ))}
+        {/* Neo-brutalism Directory Table */}
+        <Table
+          headers={[
+            { label: 'Nama Peserta', align: 'left', className: 'w-[24%]' },
+            { label: 'Event Terdaftar', align: 'left', className: 'w-[22%]' },
+            { label: 'Kategori Tiket', align: 'center', className: 'w-[26%]' },
+            { label: 'Tanggal Daftar', align: 'center', className: 'w-[12%]' },
+            { label: 'Status Check-in', align: 'center', className: 'w-[12%]' },
+            { label: 'Aksi Gate', align: 'center', className: 'w-[14%]' },
+          ]}
+        >
+          {filteredParticipants.map((p) => {
+            const ticketSummary = getParticipantTicketSummary(p);
+            const statusInfo = getCheckInStatusInfo(p);
+
+            return (
+              <tr key={p.id} className="hover:bg-neo-yellow/10 transition-colors border-b border-neo-dark/20">
+                {/* Nama Peserta */}
+                <td className="px-4 py-3.5 border-r-2 border-neo-dark align-middle">
+                  <p className="text-neo-dark font-space font-extrabold text-xs md:text-sm">{p.user_name}</p>
+                  <p className="font-jakarta text-[11px] text-gray-500 font-semibold">{p.user_email}</p>
+                </td>
+
+                {/* Event Terdaftar */}
+                <td className="px-4 py-3.5 border-r-2 border-neo-dark font-space font-bold text-xs align-middle">
+                  {p.event_title}
+                </td>
+
+                {/* Kategori Tiket (Dukungan Banyak Tiket Per Peserta) */}
+                <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle">
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    {ticketSummary.map((item, idx) => (
+                      <Badge
+                        key={idx}
+                        variant={item.tierName.includes('VIP') ? 'mint' : 'yellow'}
+                        className="inline-flex items-center gap-1 text-[11px] font-space font-black px-2.5 py-1 uppercase"
+                      >
+                        <Ticket size={12} />
+                        {item.count}x {item.tierName}
+                      </Badge>
+                    ))}
+                  </div>
+                </td>
+
+                {/* Tanggal Daftar */}
+                <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle font-jakarta text-xs font-semibold text-gray-700">
+                  {new Date(p.registered_at).toLocaleDateString('id-ID')}
+                </td>
+
+                {/* Status Check-in Multi-Tiket */}
+                <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle">
+                  <Badge variant={statusInfo.badgeVariant} className="inline-flex justify-center min-w-[105px] font-space font-extrabold">
+                    {statusInfo.statusLabel}
+                  </Badge>
+                </td>
+
+                {/* Aksi Gate Management */}
+                <td className="px-4 py-3.5 text-center align-middle">
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={() => setSelectedParticipantModal(p)}
+                      className={`px-3 py-1.5 rounded-xl border-2 border-neo-dark shadow-neo-sm transition-all cursor-pointer flex items-center gap-1.5 font-space text-[11px] font-black uppercase ${
+                        statusInfo.isAllCheckedIn
+                          ? 'bg-neo-bg text-gray-700 hover:bg-gray-200'
+                          : 'bg-neo-yellow hover:bg-neo-mint text-neo-dark'
+                      }`}
+                    >
+                      <QrCode size={14} />
+                      {statusInfo.isAllCheckedIn ? 'Lihat Tiket' : 'Kelola Gate'}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </Table>
       </Card>
+
+      {/* MODAL KELOLA TIKET & GATE MULTI-TIKET */}
+      <Modal
+        isOpen={!!selectedParticipantModal}
+        onClose={() => setSelectedParticipantModal(null)}
+        title={`Kelola Gate: ${selectedParticipantModal?.user_name}`}
+      >
+        {selectedParticipantModal && (
+          <div className="p-4 bg-white rounded-xl border-2.5 border-neo-dark space-y-4 font-jakarta text-xs">
+            {/* Participant Info Banner */}
+            <div className="p-3 bg-neo-toska/30 rounded-xl border-2 border-neo-dark flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="font-space font-black text-sm text-neo-dark">{selectedParticipantModal.user_name}</h4>
+                <p className="text-gray-600 font-semibold">{selectedParticipantModal.user_email}</p>
+                <p className="font-space font-bold text-xs text-neo-dark mt-1">Event: {selectedParticipantModal.event_title}</p>
+              </div>
+
+              {!getCheckInStatusInfo(selectedParticipantModal).isAllCheckedIn && (
+                <Button
+                  onClick={() => handleCheckInAllTickets(selectedParticipantModal)}
+                  variant="primary"
+                  size="sm"
+                  icon={<UserCheck size={14} />}
+                  className="whitespace-nowrap shrink-0"
+                >
+                  Check-in Semua Tiket
+                </Button>
+              )}
+            </div>
+
+            {/* List Tiket Individu */}
+            <div className="space-y-2.5">
+              <h5 className="font-space font-extrabold text-xs uppercase text-neo-dark tracking-wide">
+                Rincian Tiket Peserta ({selectedParticipantModal.tickets?.length || 1} Tiket):
+              </h5>
+
+              {selectedParticipantModal.tickets && selectedParticipantModal.tickets.length > 0 ? (
+                selectedParticipantModal.tickets.map((t: ParticipantTicketItem, idx: number) => (
+                  <div
+                    key={t.id || idx}
+                    className={`p-3 rounded-xl border-2 border-neo-dark flex items-center justify-between gap-3 ${
+                      t.is_checked_in ? 'bg-neo-mint/20' : 'bg-neo-bg/50'
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="yellow" className="text-[10px] font-space font-black px-2 py-0.5">
+                          {t.ticket_tier_name}
+                        </Badge>
+                        <span className="font-space font-extrabold text-xs text-neo-dark">{t.ticket_code}</span>
+                      </div>
+                      {t.is_checked_in ? (
+                        <p className="text-[11px] font-bold text-emerald-800">
+                          ✓ Masuk: {t.check_in_time ? new Date(t.check_in_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Sudah Validasi'}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] font-semibold text-gray-500">Belum dipindai di Gate</p>
+                      )}
+                    </div>
+
+                    {!t.is_checked_in ? (
+                      <Button
+                        onClick={() => handleCheckInSingleTicket(selectedParticipantModal, t.id)}
+                        variant="secondary"
+                        size="sm"
+                        className="whitespace-nowrap"
+                      >
+                        Scan / Masuk
+                      </Button>
+                    ) : (
+                      <Badge variant="mint" className="text-[10px] uppercase">TERVERIFIKASI</Badge>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="p-3 bg-neo-bg rounded-xl border-2 border-neo-dark flex items-center justify-between">
+                  <div>
+                    <span className="font-space font-extrabold text-xs">{selectedParticipantModal.ticket_tier_name}</span>
+                    <p className="text-gray-500 text-[11px]">Single Ticket Participant</p>
+                  </div>
+                  {selectedParticipantModal.registration_status !== 'checked_in' ? (
+                    <Button
+                      onClick={() => handleCheckInAllTickets(selectedParticipantModal)}
+                      variant="primary"
+                      size="sm"
+                    >
+                      Scan / Masuk
+                    </Button>
+                  ) : (
+                    <Badge variant="mint">TERVERIFIKASI</Badge>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

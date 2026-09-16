@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type {
   User,
+  UserStatus,
   EventItem,
   Order,
   OrderStatus,
@@ -347,7 +348,7 @@ export const eventifyApi = {
     const activeEventsCount = events.filter((e) => e.status === 'published' || e.status === 'ongoing').length;
     const pendingEventsCount = events.filter((e) => e.status === 'pending_approval').length;
     const totalOrganizersCount = users.filter((u) => u.role === 'organizer').length;
-    
+
     // 1. Ambil data order yang SUDAH LUNAS (PAID) saja. Order berstatus PENDING/UNPAID SAMA SEKALI TIDAK DIHITUNG.
     const paidOrders = orders.filter((o) => {
       const st = String(o.status || '').toLowerCase();
@@ -365,12 +366,12 @@ export const eventifyApi = {
 
     // 3. Bangun titik grafik daily_transactions secara sinkron agar nilainya sesuai dengan total_revenue di atas
     let dailyTransactionsCalc: { date: string; revenue: number; tickets: number }[] = [];
-    
+
     if (paidOrders.length > 0) {
       const grouped: { [key: string]: { revenue: number; tickets: number } } = {};
       paidOrders.forEach((ord) => {
-        const dateStr = ord.created_at 
-          ? new Date(ord.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) 
+        const dateStr = ord.created_at
+          ? new Date(ord.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
           : 'Hari Ini';
         if (!grouped[dateStr]) grouped[dateStr] = { revenue: 0, tickets: 0 };
         grouped[dateStr].revenue += Number(ord.total_amount || 0);
@@ -428,6 +429,8 @@ export const eventifyApi = {
   getUsers: async (): Promise<User[]> => {
     const localUsers = getStorageItem('eventify_mock_users', INITIAL_MOCK_USERS).map(normalizeUser);
     const softDeletedIds = getStorageItem<string[]>('eventify_deleted_user_ids', []);
+    const statusMap = getStorageItem<Record<string, UserStatus>>('eventify_user_status_map', {});
+
     try {
       const res = await apiClient.get('/admin/users');
       const apiData = extractArrayData<any>(res.data).map(normalizeUser);
@@ -435,34 +438,48 @@ export const eventifyApi = {
         // Gabungkan user backend & lokal, prioritaskan status yang tersimpan di local storage
         const merged: User[] = apiData.map((au) => {
           const match = localUsers.find((lu) => String(lu.id) === String(au.id) || lu.email.toLowerCase() === au.email.toLowerCase());
-          const isSoftDeleted = softDeletedIds.includes(String(au.id)) || (match && match.status === 'suspended');
+          const overrideStatus = statusMap[String(au.id)] || statusMap[au.email.toLowerCase()];
+          const isSoftDeleted = softDeletedIds.includes(String(au.id)) || (match && match.status === 'suspended') || overrideStatus === 'suspended';
+          const finalStatus = isSoftDeleted ? ('suspended' as const) : (overrideStatus || match?.status || au.status || 'active');
+          
           return {
             ...au,
-            status: isSoftDeleted ? ('suspended' as const) : match?.status || au.status || 'active',
+            status: finalStatus as UserStatus,
             organization: match?.organization || au.organization,
           };
         });
 
         localUsers.forEach((lu) => {
           if (!merged.some((au) => String(au.id) === String(lu.id) || au.email.toLowerCase() === lu.email.toLowerCase())) {
-            const isSoftDeleted = softDeletedIds.includes(String(lu.id)) || lu.status === 'suspended';
+            const overrideStatus = statusMap[String(lu.id)] || statusMap[lu.email.toLowerCase()];
+            const isSoftDeleted = softDeletedIds.includes(String(lu.id)) || lu.status === 'suspended' || overrideStatus === 'suspended';
+            const finalStatus = isSoftDeleted ? ('suspended' as const) : (overrideStatus || lu.status || 'active');
+
             merged.unshift({
               ...lu,
-              status: isSoftDeleted ? ('suspended' as const) : lu.status || 'active',
+              status: finalStatus as UserStatus,
             });
           }
         });
         return merged;
       }
-      return localUsers.map((lu) => ({
-        ...lu,
-        status: (softDeletedIds.includes(String(lu.id)) || lu.status === 'suspended') ? ('suspended' as const) : lu.status || 'active',
-      }));
+      return localUsers.map((lu) => {
+        const overrideStatus = statusMap[String(lu.id)] || statusMap[lu.email.toLowerCase()];
+        const isSoftDeleted = softDeletedIds.includes(String(lu.id)) || lu.status === 'suspended' || overrideStatus === 'suspended';
+        return {
+          ...lu,
+          status: (isSoftDeleted ? 'suspended' : (overrideStatus || lu.status || 'active')) as UserStatus,
+        };
+      });
     } catch {
-      return localUsers.map((lu) => ({
-        ...lu,
-        status: (softDeletedIds.includes(String(lu.id)) || lu.status === 'suspended') ? ('suspended' as const) : lu.status || 'active',
-      }));
+      return localUsers.map((lu) => {
+        const overrideStatus = statusMap[String(lu.id)] || statusMap[lu.email.toLowerCase()];
+        const isSoftDeleted = softDeletedIds.includes(String(lu.id)) || lu.status === 'suspended' || overrideStatus === 'suspended';
+        return {
+          ...lu,
+          status: (isSoftDeleted ? 'suspended' : (overrideStatus || lu.status || 'active')) as UserStatus,
+        };
+      });
     }
   },
 
@@ -552,11 +569,18 @@ export const eventifyApi = {
       }
       updatedUser = normalizeUser(extractObjectData<any>(res.data));
     } catch {
-      /* ignore backend failure */
+      /* ignore backend failure if endpoint doesn't exist */
     }
 
-    // Jika status diubah, perbarui status dan sinkronkan softDeletedIds
+    // Perbarui status map & deletedIds jika status diubah
     if (updates.status) {
+      const statusMap = getStorageItem<Record<string, UserStatus>>('eventify_user_status_map', {});
+      statusMap[String(id)] = updates.status;
+      if (updates.email) {
+        statusMap[updates.email.toLowerCase()] = updates.status;
+      }
+      setStorageItem('eventify_user_status_map', statusMap);
+
       const deletedIds = getStorageItem<string[]>('eventify_deleted_user_ids', []);
       if (updates.status === 'suspended') {
         if (!deletedIds.includes(String(id))) {
@@ -570,7 +594,7 @@ export const eventifyApi = {
     }
 
     // Selalu perbarui data di local storage agar status/organisasi tersimpan permanen
-    const users = getStorageItem('eventify_mock_users', INITIAL_MOCK_USERS);
+    const users = getStorageItem<User[]>('eventify_mock_users', INITIAL_MOCK_USERS);
     const idx = users.findIndex((u) => String(u.id) === String(id) || (updates.email && u.email.toLowerCase() === updates.email.toLowerCase()));
     if (idx !== -1) {
       users[idx] = { ...users[idx], ...updates, status: updates.status || users[idx].status };
@@ -582,19 +606,20 @@ export const eventifyApi = {
       setStorageItem('eventify_mock_users', users);
       return merged;
     } else {
-      const dummy: User = {
-        id,
-        name: updates.name || 'Panitia',
-        email: updates.email || 'panitia@eventify.id',
-        role: updates.role || 'organizer',
-        status: updates.status || 'active',
-        organization: updates.organization || 'Instansi Panitia',
+      // Jika user belum ada di mock users, buat entry berdasarkan id & updates tanpa fake placeholder
+      const newUser: User = {
+        id: String(id),
+        name: updates.name || 'User',
+        email: updates.email || '',
         phone: updates.phone || '-',
-        created_at: new Date().toISOString(),
+        role: updates.role || 'customer',
+        status: updates.status || 'active',
+        organization: updates.organization,
+        created_at: updates.created_at || new Date().toISOString(),
       };
-      users.unshift(dummy);
+      users.unshift(newUser);
       setStorageItem('eventify_mock_users', users);
-      return dummy;
+      return newUser;
     }
   },
 
@@ -864,19 +889,37 @@ export const eventifyApi = {
     }
   },
 
-  updateCheckIn: async (participantId: string): Promise<Participant> => {
+  updateCheckIn: async (participantId: string, ticketId?: string): Promise<Participant> => {
     try {
-      const res = await apiClient.post(`/admin/participants/${participantId}/check-in`);
+      const res = await apiClient.post(`/admin/participants/${participantId}/check-in`, { ticket_id: ticketId });
       return extractObjectData<Participant>(res.data);
     } catch {
       const participants = getStorageItem('eventify_mock_participants', INITIAL_MOCK_PARTICIPANTS);
       const idx = participants.findIndex((p) => p.id === participantId);
       if (idx !== -1) {
-        participants[idx] = {
-          ...participants[idx],
-          registration_status: 'checked_in',
-          check_in_time: new Date().toISOString(),
-        };
+        const pt = participants[idx];
+        const nowStr = new Date().toISOString();
+        if (pt.tickets && pt.tickets.length > 0) {
+          const updatedTickets = pt.tickets.map((t) => {
+            if (!ticketId || t.id === ticketId || t.ticket_code === ticketId) {
+              return { ...t, is_checked_in: true, check_in_time: t.check_in_time || nowStr };
+            }
+            return t;
+          });
+          const allDone = updatedTickets.every((t) => t.is_checked_in);
+          participants[idx] = {
+            ...pt,
+            tickets: updatedTickets,
+            registration_status: allDone ? 'checked_in' : 'confirmed',
+            check_in_time: allDone ? (pt.check_in_time || nowStr) : pt.check_in_time,
+          };
+        } else {
+          participants[idx] = {
+            ...pt,
+            registration_status: 'checked_in',
+            check_in_time: nowStr,
+          };
+        }
         setStorageItem('eventify_mock_participants', participants);
         return participants[idx];
       }

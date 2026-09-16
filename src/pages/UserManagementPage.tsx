@@ -177,62 +177,70 @@ export const UserManagementPage: React.FC = () => {
               <option value="all">Semua Status</option>
               <option value="active">Active (Aktif)</option>
               <option value="suspended">Suspended (Ditangguhkan)</option>
-              <option value="blocked">Blocked (Dibidik/Blokir)</option>
             </select>
           </div>
         </div>
 
         {/* Directory Table */}
-        <Table headers={['Profil User', 'No. Handphone', 'Role Sistem', 'Tanggal Registrasi', 'Status Akun', 'Aksi Kontrol']}>
+        <Table
+          headers={[
+            { label: 'Profil User', align: 'left', className: 'w-[28%]' },
+            { label: 'No. Handphone', align: 'center', className: 'w-[16%]' },
+            { label: 'Role Sistem', align: 'center', className: 'w-[16%]' },
+            { label: 'Tanggal Registrasi', align: 'center', className: 'w-[16%]' },
+            { label: 'Status Akun', align: 'center', className: 'w-[12%]' },
+            { label: 'Aksi Kontrol', align: 'center', className: 'w-[12%]' },
+          ]}
+        >
           {filteredUsers.map((u) => (
-            <tr key={u.id} className="hover:bg-neo-yellow/15 transition-colors">
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-bold text-xs">
-                <p className="text-neo-dark font-extrabold">{u.name}</p>
+            <tr key={u.id} className="hover:bg-neo-yellow/10 transition-colors border-b border-neo-dark/20">
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark align-middle">
+                <p className="text-neo-dark font-space font-extrabold text-xs md:text-sm leading-tight">{u.name}</p>
                 <p className="font-jakarta text-[11px] text-gray-500 font-semibold">{u.email}</p>
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta text-xs font-semibold">
-                {u.phone || '-'}
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle font-jakarta text-xs font-semibold text-gray-700">
+                {u.phone && u.phone !== '-' ? u.phone : '-'}
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-extrabold text-xs uppercase">
-                <Badge variant={u.role === 'admin' ? 'pink' : u.role === 'organizer' ? 'yellow' : 'mint'}>
-                  {u.role}
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle">
+                <Badge variant={u.role === 'admin' ? 'pink' : u.role === 'organizer' ? 'yellow' : 'mint'} className="inline-flex justify-center min-w-[95px]">
+                  {u.role.toUpperCase()}
                 </Badge>
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta text-xs font-semibold">
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle font-jakarta text-xs font-semibold text-gray-700">
                 {new Date(u.created_at).toLocaleDateString('id-ID')}
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark text-xs">
-                <Badge variant={(u.status || 'active') === 'active' ? 'mint' : 'pink'}>
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle">
+                <Badge variant={(u.status || 'active') === 'active' ? 'mint' : 'pink'} className="inline-flex justify-center min-w-[85px]">
                   {(u.status || 'active').toUpperCase()}
                 </Badge>
               </td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-1.5">
+              <td className="px-4 py-3.5 text-center align-middle">
+                <div className="flex items-center justify-center gap-1.5">
                   <button
                     onClick={() => {
                       setSelectedUser(u);
                       setIsDetailModalOpen(true);
                     }}
                     title="Detail Profil & Riwayat"
-                    className="p-1.5 bg-white rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-neo-toska transition-all cursor-pointer"
+                    className="p-2 bg-white rounded-xl border-2 border-neo-dark shadow-neo-sm hover:bg-neo-toska transition-all cursor-pointer"
                   >
-                    <Eye size={15} />
+                    <Eye size={16} />
                   </button>
                   {u.status !== 'suspended' ? (
                     <button
                       onClick={() => handleStatusChange(u.id, 'suspended')}
                       title="Suspend / Nonaktifkan Akun"
-                      className="p-1.5 bg-white rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-neo-yellow transition-all cursor-pointer"
+                      className="p-2 bg-white rounded-xl border-2 border-neo-dark shadow-neo-sm hover:bg-neo-yellow transition-all cursor-pointer"
                     >
-                      <UserX size={15} />
+                      <UserX size={16} />
                     </button>
                   ) : (
                     <button
                       onClick={() => handleStatusChange(u.id, 'active')}
                       title="Aktifkan Akun"
-                      className="p-1.5 bg-white rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-neo-mint transition-all cursor-pointer"
+                      className="p-2 bg-white rounded-xl border-2 border-neo-dark shadow-neo-sm hover:bg-neo-mint transition-all cursor-pointer"
                     >
-                      <UserCheck size={15} />
+                      <UserCheck size={16} />
                     </button>
                   )}
                 </div>

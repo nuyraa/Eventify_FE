@@ -103,6 +103,14 @@ export interface Order {
   items: OrderItem[];
 }
 
+export interface ParticipantTicketItem {
+  id: string;
+  ticket_code: string;
+  ticket_tier_name: string;
+  is_checked_in: boolean;
+  check_in_time?: string;
+}
+
 export interface Participant {
   id: string;
   event_id: string;
@@ -113,6 +121,7 @@ export interface Participant {
   registration_status: 'pending' | 'confirmed' | 'cancelled' | 'checked_in';
   check_in_time?: string;
   registered_at: string;
+  tickets?: ParticipantTicketItem[];
 }
 
 export interface RefundRequest {

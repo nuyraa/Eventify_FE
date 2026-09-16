@@ -194,58 +194,58 @@ export const OrganizerManagementPage: React.FC = () => {
 
         <Table
           headers={[
-            'Informasi Panitia',
-            'Organisasi / Instansi',
-            'No. Handphone',
-            'Event Dikelola',
-            'Status Akun',
-            'Aksi Admin',
+            { label: 'Informasi Panitia', align: 'left', className: 'w-[28%]' },
+            { label: 'Organisasi / Instansi', align: 'center', className: 'w-[20%]' },
+            { label: 'No. Handphone', align: 'center', className: 'w-[16%]' },
+            { label: 'Event Dikelola', align: 'center', className: 'w-[12%]' },
+            { label: 'Status Akun', align: 'center', className: 'w-[12%]' },
+            { label: 'Aksi Admin', align: 'center', className: 'w-[12%]' },
           ]}
         >
           {filteredOrganizers.map((u) => (
             <tr key={u.id} className="hover:bg-neo-yellow/10 transition-colors border-b border-neo-dark/20">
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space text-xs">
-                <p className="text-neo-dark font-extrabold text-sm">{u.name}</p>
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark align-middle">
+                <p className="text-neo-dark font-space font-extrabold text-sm">{u.name}</p>
                 <p className="font-jakarta text-[11px] text-gray-500 font-semibold">{u.email}</p>
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta text-xs">
-                <span className="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-md font-space font-extrabold text-[11px]">
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle">
+                <span className="inline-block px-3 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-md font-space font-extrabold text-[11px]">
                   {u.organization || 'Instansi Umum'}
                 </span>
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta text-xs font-semibold text-gray-700">
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle font-jakarta text-xs font-semibold text-gray-700">
                 {u.phone && u.phone !== '-' ? u.phone : '-'}
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-extrabold text-xs text-center">
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle font-space font-extrabold text-xs">
                 {u.managed_events_count ?? 2} Event
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark text-xs text-center">
-                <Badge variant={u.status === 'active' ? 'mint' : 'pink'}>
+              <td className="px-4 py-3.5 border-r-2 border-neo-dark text-center align-middle">
+                <Badge variant={u.status === 'active' ? 'mint' : 'pink'} className="inline-flex justify-center min-w-[85px]">
                   {u.status ? u.status.toUpperCase() : 'ACTIVE'}
                 </Badge>
               </td>
-              <td className="px-4 py-3 text-center">
+              <td className="px-4 py-3.5 text-center align-middle">
                 <div className="flex items-center justify-center gap-1.5">
                   <button
                     onClick={() => openEditModal(u)}
                     title="Edit Panitia"
-                    className="p-1.5 bg-white rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-neo-yellow transition-all cursor-pointer"
+                    className="p-2 bg-white rounded-xl border-2 border-neo-dark shadow-neo-sm hover:bg-neo-yellow transition-all cursor-pointer"
                   >
-                    <Edit2 size={15} />
+                    <Edit2 size={16} />
                   </button>
                   <button
                     onClick={() => openResetPassModal(u)}
                     title="Reset Password"
-                    className="p-1.5 bg-white rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-neo-toska transition-all cursor-pointer"
+                    className="p-2 bg-white rounded-xl border-2 border-neo-dark shadow-neo-sm hover:bg-neo-toska transition-all cursor-pointer"
                   >
-                    <KeyRound size={15} />
+                    <KeyRound size={16} />
                   </button>
                   <button
                     onClick={() => toggleStatus(u)}
                     title={u.status === 'active' ? 'Nonaktifkan / Suspend' : 'Aktifkan Akun'}
-                    className="p-1.5 bg-white rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-neo-pink transition-all cursor-pointer"
+                    className="p-2 bg-white rounded-xl border-2 border-neo-dark shadow-neo-sm hover:bg-neo-pink transition-all cursor-pointer"
                   >
-                    {u.status === 'active' ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
+                    {u.status === 'active' ? <XCircle size={16} /> : <CheckCircle2 size={16} />}
                   </button>
                 </div>
               </td>

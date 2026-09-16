@@ -8,7 +8,6 @@ import {
   Ticket,
   Wallet,
   BarChart3,
-  Bell,
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -40,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       icon: <Users size={19} />,
     },
     {
-      label: 'Event & Approval',
+      label: 'Manajemen Event',
       path: '/admin/events',
       icon: <CalendarCheck size={19} />,
     },
@@ -55,14 +54,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       icon: <Wallet size={19} />,
     },
     {
-      label: 'Laporan & Analitik',
+      label: 'Laporan',
       path: '/admin/reports',
       icon: <BarChart3 size={19} />,
-    },
-    {
-      label: 'Notifikasi & Support',
-      path: '/admin/notifications',
-      icon: <Bell size={19} />,
     },
   ];
 
