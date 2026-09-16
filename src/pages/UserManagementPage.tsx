@@ -2,12 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { eventifyApi } from '../services/api';
 import type { User, UserStatus } from '../types';
 import {
-  Users,
   Search,
   Filter,
   UserCheck,
   UserX,
-  Trash2,
   Download,
   Eye,
   Ticket,
@@ -58,36 +56,59 @@ export const UserManagementPage: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async (userId: string, userName: string) => {
-    if (!window.confirm(`Yakin ingin menghapus permanen akun "${userName}"?`)) return;
-    try {
-      await eventifyApi.deleteUser(userId);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-      showNotif(`Akun "${userName}" telah dihapus.`);
-    }
-  };
+  const exportUsersToExcel = () => {
+    // Buat file Excel XML (Format Spreadsheet XML asli yang rapih di Excel tanpa kolom terpotong)
+    const xmlRows = filteredUsers.map((u) => `
+      <Row>
+        <Cell><Data ss:Type="String">${u.id}</Data></Cell>
+        <Cell><Data ss:Type="String">${u.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</Data></Cell>
+        <Cell><Data ss:Type="String">${u.email}</Data></Cell>
+        <Cell><Data ss:Type="String">${u.phone && u.phone !== '-' ? u.phone : '-'}</Data></Cell>
+        <Cell><Data ss:Type="String">${u.role.toUpperCase()}</Data></Cell>
+        <Cell><Data ss:Type="String">${(u.status || 'active').toUpperCase()}</Data></Cell>
+        <Cell><Data ss:Type="String">${new Date(u.created_at).toLocaleDateString('id-ID')}</Data></Cell>
+      </Row>`).join('');
 
-  const exportUsersToCSV = () => {
-    const headers = ['ID', 'Nama', 'Email', 'Telepon', 'Role', 'Status', 'Tanggal Daftar'];
-    const rows = filteredUsers.map((u) => [
-      u.id,
-      `"${u.name}"`,
-      u.email,
-      u.phone || '-',
-      u.role,
-      u.status || 'active',
-      new Date(u.created_at).toLocaleDateString('id-ID'),
-    ]);
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const excelTemplate = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#1F2937" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Data Akun Eventify">
+  <Table>
+   <Column ss:Width="100"/>
+   <Column ss:Width="180"/>
+   <Column ss:Width="200"/>
+   <Column ss:Width="130"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="120"/>
+   <Row ss:StyleID="Header">
+    <Cell><Data ss:Type="String">ID User</Data></Cell>
+    <Cell><Data ss:Type="String">Nama Lengkap</Data></Cell>
+    <Cell><Data ss:Type="String">Email</Data></Cell>
+    <Cell><Data ss:Type="String">No. Handphone</Data></Cell>
+    <Cell><Data ss:Type="String">Role</Data></Cell>
+    <Cell><Data ss:Type="String">Status Akun</Data></Cell>
+    <Cell><Data ss:Type="String">Tanggal Pendaftaran</Data></Cell>
+   </Row>
+   ${xmlRows}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Eventify_Users_Export_${Date.now()}.csv`);
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `Eventify_Data_Akun_${Date.now()}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -112,19 +133,16 @@ export const UserManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* Header Banner */}
+      {/* Header Banner Clean */}
       <div className="p-6 bg-neo-yellow rounded-2xl border-3 border-neo-dark shadow-neo flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="font-space font-extrabold text-2xl md:text-3xl text-neo-dark flex items-center gap-3">
-            <Users size={32} /> Manajemen User & Peserta
+          <h1 className="font-space font-extrabold text-2xl md:text-3xl text-neo-dark">
+            Manajemen Akun
           </h1>
-          <p className="font-jakarta font-semibold text-xs md:text-sm text-neo-dark/80 mt-1">
-            Direktori peserta & customer platform, kelola status akun (suspend/blokir), dan riset riwayat partisipasi event.
-          </p>
         </div>
 
-        <Button onClick={exportUsersToCSV} variant="secondary" icon={<Download size={18} />} className="shrink-0">
-          Export Data CSV
+        <Button onClick={exportUsersToExcel} variant="secondary" icon={<Download size={18} />} className="shrink-0">
+          Export Data Excel
         </Button>
       </div>
 
@@ -203,7 +221,7 @@ export const UserManagementPage: React.FC = () => {
                   {u.status !== 'suspended' ? (
                     <button
                       onClick={() => handleStatusChange(u.id, 'suspended')}
-                      title="Suspend Akun"
+                      title="Suspend / Nonaktifkan Akun"
                       className="p-1.5 bg-white rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-neo-yellow transition-all cursor-pointer"
                     >
                       <UserX size={15} />
@@ -217,13 +235,6 @@ export const UserManagementPage: React.FC = () => {
                       <UserCheck size={15} />
                     </button>
                   )}
-                  <button
-                    onClick={() => handleDeleteUser(u.id, u.name)}
-                    title="Hapus Akun"
-                    className="p-1.5 bg-neo-pink text-neo-dark rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-red-300 transition-all cursor-pointer"
-                  >
-                    <Trash2 size={15} />
-                  </button>
                 </div>
               </td>
             </tr>

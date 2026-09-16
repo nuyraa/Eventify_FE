@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { eventifyApi } from '../services/api';
 import type { User } from '../types';
 import {
-  Building2,
   Plus,
   Search,
   KeyRound,
-  Trash2,
   Edit2,
   CheckCircle2,
   XCircle,
@@ -32,6 +30,7 @@ export const OrganizerManagementPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
   const [organization, setOrganization] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [notification, setNotification] = useState<string | null>(null);
@@ -64,7 +63,8 @@ export const OrganizerManagementPage: React.FC = () => {
         phone,
         organization: organization || 'Instansi Panitia',
         role: 'organizer',
-      });
+        password: password || '123456',
+      } as any);
       showNotif(`Berhasil menambahkan akun panitia "${name}"!`);
       setIsAddModalOpen(false);
       resetForm();
@@ -92,12 +92,17 @@ export const OrganizerManagementPage: React.FC = () => {
     }
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPassword || !selectedUser) return;
-    showNotif(`Password akun panitia "${selectedUser.name}" telah di-reset!`);
-    setIsResetPassModalOpen(false);
-    setNewPassword('');
+    try {
+      await eventifyApi.resetUserPassword(selectedUser.email, newPassword, selectedUser.id);
+      showNotif(`Password akun panitia "${selectedUser.name}" berhasil di-reset!`);
+      setIsResetPassModalOpen(false);
+      setNewPassword('');
+    } catch (err: any) {
+      alert(err.message || 'Gagal mereset password');
+    }
   };
 
   const toggleStatus = async (user: User) => {
@@ -105,21 +110,9 @@ export const OrganizerManagementPage: React.FC = () => {
     try {
       await eventifyApi.updateUser(user.id, { status: nextStatus });
       showNotif(`Status panitia ${user.name} diubah menjadi ${nextStatus.toUpperCase()}`);
-      fetchOrganizers();
+      await fetchOrganizers();
     } catch (err) {
       console.error(err);
-    }
-  };
-
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Hapus permanen akun panitia "${name}"?`)) return;
-    try {
-      await eventifyApi.deleteUser(id);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setOrganizers((prev) => prev.filter((o) => o.id !== id));
-      showNotif(`Akun panitia "${name}" telah dihapus.`);
     }
   };
 
@@ -127,6 +120,7 @@ export const OrganizerManagementPage: React.FC = () => {
     setName('');
     setEmail('');
     setPhone('');
+    setPassword('');
     setOrganization('');
   };
 
@@ -165,12 +159,9 @@ export const OrganizerManagementPage: React.FC = () => {
       {/* Header Banner */}
       <div className="p-6 bg-neo-toska/80 rounded-2xl border-3 border-neo-dark shadow-neo flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-space font-extrabold text-2xl md:text-3xl text-neo-dark flex items-center gap-3">
-            <Building2 size={32} /> Manajemen Instansi Panitia
+          <h1 className="font-space font-extrabold text-2xl md:text-3xl text-neo-dark">
+            Manajemen Instansi Panitia
           </h1>
-          <p className="font-jakarta font-semibold text-xs md:text-sm text-neo-dark/80 mt-1">
-            Kelola akun penyelenggara event, instansi yang diwakili, hak akses, dan riset riwayat aktivitas.
-          </p>
         </div>
 
         <Button
@@ -212,27 +203,29 @@ export const OrganizerManagementPage: React.FC = () => {
           ]}
         >
           {filteredOrganizers.map((u) => (
-            <tr key={u.id} className="hover:bg-neo-yellow/15 transition-colors">
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-bold text-xs">
-                <p className="text-neo-dark font-extrabold">{u.name}</p>
+            <tr key={u.id} className="hover:bg-neo-yellow/10 transition-colors border-b border-neo-dark/20">
+              <td className="px-4 py-3 border-r-2 border-neo-dark font-space text-xs">
+                <p className="text-neo-dark font-extrabold text-sm">{u.name}</p>
                 <p className="font-jakarta text-[11px] text-gray-500 font-semibold">{u.email}</p>
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta font-extrabold text-xs">
-                <Badge variant="yellow">{u.organization || 'Instansi Umum'}</Badge>
+              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta text-xs">
+                <span className="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-md font-space font-extrabold text-[11px]">
+                  {u.organization || 'Instansi Umum'}
+                </span>
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta text-xs font-semibold">
-                {u.phone || '-'}
+              <td className="px-4 py-3 border-r-2 border-neo-dark font-jakarta text-xs font-semibold text-gray-700">
+                {u.phone && u.phone !== '-' ? u.phone : '-'}
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-black text-xs text-center">
-                {u.managed_events_count || 2} Event
+              <td className="px-4 py-3 border-r-2 border-neo-dark font-space font-extrabold text-xs text-center">
+                {u.managed_events_count ?? 2} Event
               </td>
-              <td className="px-4 py-3 border-r-2 border-neo-dark text-xs">
+              <td className="px-4 py-3 border-r-2 border-neo-dark text-xs text-center">
                 <Badge variant={u.status === 'active' ? 'mint' : 'pink'}>
                   {u.status ? u.status.toUpperCase() : 'ACTIVE'}
                 </Badge>
               </td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-1.5">
+              <td className="px-4 py-3 text-center">
+                <div className="flex items-center justify-center gap-1.5">
                   <button
                     onClick={() => openEditModal(u)}
                     title="Edit Panitia"
@@ -249,17 +242,10 @@ export const OrganizerManagementPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => toggleStatus(u)}
-                    title={u.status === 'active' ? 'Nonaktifkan' : 'Aktifkan'}
+                    title={u.status === 'active' ? 'Nonaktifkan / Suspend' : 'Aktifkan Akun'}
                     className="p-1.5 bg-white rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-neo-pink transition-all cursor-pointer"
                   >
                     {u.status === 'active' ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(u.id, u.name)}
-                    title="Hapus Permanent"
-                    className="p-1.5 bg-neo-pink text-neo-dark rounded-lg border-2 border-neo-dark shadow-neo-sm hover:bg-red-300 transition-all cursor-pointer"
-                  >
-                    <Trash2 size={15} />
                   </button>
                 </div>
               </td>
@@ -273,6 +259,7 @@ export const OrganizerManagementPage: React.FC = () => {
         <form onSubmit={handleAddOrganizer} className="space-y-4">
           <Input label="Nama Penanggung Jawab" placeholder="e.g. Siti Rahma" value={name} onChange={(e) => setName(e.target.value)} required />
           <Input label="Email Resmi Panitia" type="email" placeholder="e.g. siti@soundwave.co.id" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Input label="Kata Sandi / Password Akun" type="password" placeholder="e.g. aluna123" value={password} onChange={(e) => setPassword(e.target.value)} required />
           <Input label="No. Handphone / WhatsApp" placeholder="e.g. 081234567890" value={phone} onChange={(e) => setPhone(e.target.value)} required />
           <Input label="Organisasi / Nama Instansi" placeholder="e.g. Soundwave Indonesia" value={organization} onChange={(e) => setOrganization(e.target.value)} required />
           <Button type="submit" variant="primary" className="w-full">Simpan & Buat Akun</Button>

@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Lock, Mail, ShieldAlert, CheckCircle2, ArrowRight, ShieldCheck } from 'lucide-react';
-import { Input } from '../components/ui/Input';
+import { Lock, Mail, ShieldAlert, CheckCircle2, ArrowRight, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const { login, isLoading } = useAuth();
@@ -33,11 +33,6 @@ export const LoginPage: React.FC = () => {
     } catch (err: any) {
       setErrorMsg(err.message || 'Akses Ditolak: Kredensial tidak valid atau akun Anda bukan Administrator.');
     }
-  };
-
-  const handleAdminPreset = () => {
-    setEmail('admin@eventify.id');
-    setPassword('admin123');
   };
 
   return (
@@ -86,25 +81,53 @@ export const LoginPage: React.FC = () => {
               </div>
             )}
 
-            <Input
-              label="Email Administrator"
-              type="email"
-              placeholder="admin@eventify.id"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              icon={<Mail size={18} />}
-              required
-            />
+            {/* Email Input */}
+            <div className="w-full flex flex-col gap-1.5">
+              <label className="font-space font-extrabold text-xs uppercase tracking-wider text-neo-dark">
+                EMAIL ADMINISTRATOR
+              </label>
+              <div className="relative flex items-center">
+                <span className="absolute left-3.5 text-neo-dark pointer-events-none">
+                  <Mail size={18} />
+                </span>
+                <input
+                  type="email"
+                  placeholder="admin@eventify.id"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full pl-10 px-4 py-2.5 rounded-lg border-2.5 border-neo-dark bg-white font-jakarta text-neo-dark focus:outline-none focus:ring-2 focus:ring-neo-yellow focus:shadow-neo transition-all placeholder:text-gray-400"
+                />
+              </div>
+            </div>
 
-            <Input
-              label="Password Admin"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              icon={<Lock size={18} />}
-              required
-            />
+            {/* Password Input with Show/Hide Toggle */}
+            <div className="w-full flex flex-col gap-1.5">
+              <label className="font-space font-extrabold text-xs uppercase tracking-wider text-neo-dark">
+                PASSWORD ADMIN
+              </label>
+              <div className="relative flex items-center">
+                <span className="absolute left-3.5 text-neo-dark pointer-events-none">
+                  <Lock size={18} />
+                </span>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full pl-10 pr-10 py-2.5 rounded-lg border-2.5 border-neo-dark bg-white font-jakarta text-neo-dark focus:outline-none focus:ring-2 focus:ring-neo-yellow focus:shadow-neo transition-all placeholder:text-gray-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 text-neo-dark hover:text-black focus:outline-none p-1 cursor-pointer"
+                  title={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
 
             <Button
               type="submit"
@@ -117,19 +140,9 @@ export const LoginPage: React.FC = () => {
               {isLoading ? 'Verifikasi Admin...' : 'Masuk Portal Admin'}
             </Button>
           </form>
-
-          {/* Admin Preset Quick Fill */}
-          <div className="mt-5 pt-4 border-t-2 border-neo-dark">
-            <button
-              type="button"
-              onClick={handleAdminPreset}
-              className="w-full py-2 px-3 bg-neo-yellow text-neo-dark rounded-xl border-2 border-neo-dark shadow-neo-sm font-space font-extrabold text-xs uppercase hover:bg-yellow-300 transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              🔑 Isi Kredensial Admin Demo (admin@eventify.id)
-            </button>
-          </div>
         </Card>
       </div>
     </div>
   );
 };
+

@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/v1': {
-        target: 'http://139.190.96.203:8093',
+        target: 'https://photograph-revision-tell-lynn.trycloudflare.com',
         changeOrigin: true,
         secure: false,
       },

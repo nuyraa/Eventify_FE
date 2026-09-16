@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -9,9 +9,10 @@ import {
   Wallet,
   BarChart3,
   Bell,
-  ShieldCheck,
+  LogOut,
 } from 'lucide-react';
-import { Badge } from '../ui/Badge';
+import { useAuth } from '../../context/AuthContext';
+import { ConfirmModal } from './ConfirmModal';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -19,12 +20,14 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+  const { logout } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
   const navItems = [
     {
       label: 'Dashboard Overview',
       path: '/admin/dashboard',
       icon: <LayoutDashboard size={19} />,
-      badge: 'Utama',
     },
     {
       label: 'Manajemen Panitia',
@@ -32,7 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       icon: <Building2 size={19} />,
     },
     {
-      label: 'Manajemen User',
+      label: 'Manajemen Akun',
       path: '/admin/users',
       icon: <Users size={19} />,
     },
@@ -40,8 +43,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: 'Event & Approval',
       path: '/admin/events',
       icon: <CalendarCheck size={19} />,
-      badge: 'Approval',
-      badgeColor: 'yellow' as const,
     },
     {
       label: 'Pendaftaran & Tiket',
@@ -63,11 +64,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       path: '/admin/notifications',
       icon: <Bell size={19} />,
     },
-    {
-      label: 'Keamanan & Audit Log',
-      path: '/admin/security',
-      icon: <ShieldCheck size={19} />,
-    },
   ];
 
   return (
@@ -88,15 +84,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       >
         <div>
           {/* Brand Logo Header */}
-          <div className="p-3 mb-5 bg-neo-yellow rounded-2xl border-3 border-neo-dark shadow-neo flex items-center justify-between">
+          <div className="p-3 mb-5 bg-neo-yellow rounded-2xl border-3 border-neo-dark shadow-neo flex items-center justify-center">
             <img
               src="/eventify-logo.png"
               alt="Eventify Admin"
               className="h-9 object-contain drop-shadow-[1.5px_1.5px_0px_#2B2630]"
             />
-            <span className="font-space font-extrabold text-[10px] bg-neo-dark text-neo-yellow px-2 py-0.5 rounded uppercase border border-neo-dark tracking-wider">
-              SUPER ADMIN
-            </span>
           </div>
 
           {/* Navigation Links */}
@@ -118,29 +111,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <span className="shrink-0">{item.icon}</span>
                   <span className="truncate">{item.label}</span>
                 </div>
-                {item.badge && (
-                  <Badge variant={item.badgeColor || 'yellow'}>
-                    {item.badge}
-                  </Badge>
-                )}
               </NavLink>
             ))}
           </nav>
         </div>
 
-        {/* Sidebar Footer Info */}
-        <div className="mt-4 p-3 bg-white rounded-2xl border-3 border-neo-dark shadow-neo flex items-center gap-2.5 shrink-0">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-          <div className="overflow-hidden">
-            <p className="font-space font-extrabold text-[11px] text-neo-dark uppercase truncate">
-              Eventify Platform v2.5
-            </p>
-            <p className="font-jakarta text-[10px] font-semibold text-emerald-800 truncate">
-              Status: System Operational
-            </p>
-          </div>
+        {/* Sidebar Footer Logout Button */}
+        <div className="mt-4 pt-2 shrink-0">
+          <button
+            onClick={() => setShowLogoutModal(true)}
+            className="w-full py-3 px-4 bg-neo-pink text-neo-dark rounded-xl border-2.5 border-neo-dark shadow-neo-sm font-space font-extrabold text-xs uppercase hover:bg-red-300 transition-all cursor-pointer flex items-center justify-center gap-2.5"
+          >
+            <LogOut size={18} />
+            <span>Keluar Akun Admin</span>
+          </button>
         </div>
       </aside>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={logout}
+        title="Konfirmasi Logout"
+        message="Apakah Anda yakin ingin keluar dari Web Admin Eventify?"
+        confirmText="Ya, Logout"
+        cancelText="Batal"
+        variant="danger"
+      />
     </>
   );
 };
